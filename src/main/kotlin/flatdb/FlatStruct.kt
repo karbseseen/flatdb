@@ -12,17 +12,21 @@ class BoolField(offset: Int, size: Int) : FlatField(offset, size)*/
 
 abstract class FlatStruct {
 
-	var usedBits = 0; private set
-	val size get() = (usedBits + 31) / 32
+	var size = 0; private set
+	var usedBits = 0; private set(value) {
+		field = value
+		size = (value + 31) / 32
+	}
+
+	private val remainingBits get() = 32 - usedBits % 32
 
 	private fun fieldSizeException(fieldSize: Int): Nothing =
-		throw Exception("Invalid field size of $fieldSize while remaining bit count is " + (size - usedBits))
+		throw Exception("Invalid field size of $fieldSize while remaining bit count is $remainingBits")
 	private fun <T> addField(field: (Int) -> T) = run {
 		if (usedBits % 32 != 0) fieldSizeException(32)
 		field(usedBits / 32).also { usedBits += 32 }
 	}
 	private fun <T> addPartField(bits: Int, field: (Int, Int) -> T) = run {
-		val remainingBits = size - usedBits
 		if (bits > remainingBits) fieldSizeException(bits)
 		field(usedBits, usedBits + bits).also { usedBits += bits }
 	}
@@ -33,5 +37,3 @@ abstract class FlatStruct {
 	protected fun <R : FlatStruct> ref(size: Int)	= RefPartField<R>(int(size))
 	protected fun bool() 							= addPartField(1, ::BoolPartField)
 }
-
-fun <S : FlatStruct> S.createArray() = FlatArray<S>(size)

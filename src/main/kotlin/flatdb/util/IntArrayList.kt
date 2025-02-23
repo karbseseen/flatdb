@@ -1,4 +1,4 @@
-package flatdb
+package flatdb.util
 
 import kotlin.math.max
 
