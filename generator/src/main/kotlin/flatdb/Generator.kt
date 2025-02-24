@@ -4,7 +4,6 @@ import com.google.auto.service.AutoService
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
-import java.io.InvalidObjectException
 
 
 class Processor(
@@ -16,16 +15,28 @@ class Processor(
 	val structFields = StructsFields()
 	val writers = ArrayList<Writer>()
 
-	override fun process(resolver: Resolver) = emptyList<KSAnnotated>().also {
-		for (symbol in resolver.getSymbolsWithAnnotation(FlatDb.Generate::class.qualifiedName!!)) {
-			val dbClass = symbol as? KSClassDeclaration
-				?: throw InvalidObjectException("@FlatDb.Generate must be applied to a class, interface or object")
-			val dbWriter = DbWriter(dbClass, structFields)
-			if (dbWriter.arrays.isEmpty())
-				logger.warn("Nothing to do with " + dbClass.qualifiedNameStr + ", no FlatArray fields was found", dbClass)
-			writers += dbWriter
-			writers += dbWriter.arrays.map { StructWriter(it.typeClass) }
+	fun process(symbols: Sequence<KSAnnotated>) = symbols.forEach { symbolClass ->
+		if (symbolClass !is KSClassDeclaration) return@forEach
+
+		for (parentType in symbolClass.superTypes) {
+			val parentClass = parentType.aliasResolve().declaration
+			if (parentClass is KSClassDeclaration) {
+				if (parentClass.qualifiedName?.asString() == FlatStruct::class.qualifiedName) return@forEach
+				else break
+			}
 		}
+
+		val dbWriter = DbWriter(symbolClass, structFields)
+		if (dbWriter.arrays.isEmpty())
+			logger.warn("Nothing to do with " + symbolClass.qualifiedNameStr + ", no FlatArray fields was found", symbolClass)
+		writers += dbWriter
+		writers += dbWriter.arrays.map { StructWriter(it.typeClass) }
+	}
+
+	override fun process(resolver: Resolver) = emptyList<KSAnnotated>().also {
+		process(resolver.getSymbolsWithAnnotation(Public::class.qualifiedName!!))
+		process(resolver.getSymbolsWithAnnotation(ProtectedSet::class.qualifiedName!!))
+		process(resolver.getSymbolsWithAnnotation(Protected::class.qualifiedName!!))
 	}
 
 	override fun finish() = writers.write(codeGenerator)

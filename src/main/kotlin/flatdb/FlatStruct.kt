@@ -1,11 +1,6 @@
 package flatdb
 
 abstract class FlatStruct {
-	@Target(AnnotationTarget.CLASS, AnnotationTarget.PROPERTY)
-	annotation class Protected
-	@Target(AnnotationTarget.CLASS, AnnotationTarget.PROPERTY)
-	annotation class ProtectedSet
-
 	var size = 0; private set
 	var usedBits = 0; private set(value) {
 		field = value

@@ -1,26 +1,16 @@
 package flatdb
 
-import com.google.devtools.ksp.getAllSuperTypes
-import com.google.devtools.ksp.symbol.FileLocation
-import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.KSDeclaration
-import com.google.devtools.ksp.symbol.KSFile
-import com.google.devtools.ksp.symbol.KSName
-import com.google.devtools.ksp.symbol.KSNode
-import com.google.devtools.ksp.symbol.KSPropertyDeclaration
-import com.google.devtools.ksp.symbol.KSType
-import com.google.devtools.ksp.symbol.KSTypeAlias
-import com.google.devtools.ksp.symbol.KSTypeReference
+import com.google.devtools.ksp.symbol.*
 import java.io.BufferedWriter
 import java.io.FileNotFoundException
-import javax.naming.InvalidNameException
+import java.io.InvalidClassException
 
 
 fun BufferedWriter.writeln(line: String = "") = write("$line\n")
 
 val KSDeclaration.simpleNameStr get() = simpleName.asString()
 val KSDeclaration.qualifiedNameStr get() = qualifiedName?.asString()
-	?: throw InvalidNameException("Couldn't get qualified name for $simpleNameStr")
+	?: throw InvalidClassException("Couldn't get qualified name for $simpleNameStr")
 val KSDeclaration.file get() = containingFile
 	?: throw FileNotFoundException("Couldn't find containing file for $qualifiedNameStr")
 

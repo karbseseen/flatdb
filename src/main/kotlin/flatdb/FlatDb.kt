@@ -1,8 +1,7 @@
 package flatdb
 
-abstract class FlatDb {
-	@Target(AnnotationTarget.CLASS) annotation class Generate
 
+abstract class FlatDb {
 	private var arrays: HashMap<Class<*>, FlatArray<*>>? = HashMap()
 	private var canCreate = true
 	protected fun <S : FlatStruct> FlatArray(struct: S) =

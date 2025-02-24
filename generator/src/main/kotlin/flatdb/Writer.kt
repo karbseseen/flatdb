@@ -1,16 +1,13 @@
 package flatdb
 
-import com.google.devtools.ksp.getAllSuperTypes
 import com.google.devtools.ksp.getDeclaredProperties
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.FileLocation
-import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.KSPropertyDeclaration
+import com.google.devtools.ksp.symbol.KSDeclaration
 import java.io.BufferedWriter
-import kotlin.streams.asStream
 
 
 interface Writer {
@@ -74,41 +71,37 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 		FlatDb::class.qualifiedName!!,
 	)
 
-	enum class Protected {
-		No, Set, GetSet;
-		infix fun override(other: Protected) = if (other == No) this else other
-	}
-	val KSAnnotated.protected get() = run {
-		for (annotation in annotations) {
-			val name = annotation.annotationType.aliasResolve().declaration.qualifiedNameStr
-			if (name == FlatStruct.Protected::class.qualifiedName) return@run Protected.GetSet
-			if (name == FlatStruct.ProtectedSet::class.qualifiedName) return@run Protected.Set
-		}
-		Protected.No
-	}
 
-	fun BufferedWriter.writeStruct(array: Field) {
-		val arrayName = array.name
-		val type = array.typeClass.simpleNameStr
-		val arrayProtected = array.typeClass.protected
-		writeln("\tprivate val $arrayName = FlatArray($type)")
-		for (field in structFields[array.typeClass]) {
-			val name = field.name
-			val protected = arrayProtected override field.declaration.protected
-			val varModifier = if (protected == Protected.GetSet) "protected " else ""
-			val setModifier = if (protected == Protected.Set) "protected " else ""
-			writeln("\t${varModifier}var Ref<$type>.$name")
-			writeln("\t\t@JvmName(\"${type}_$name\") get() = $type.$name.getValue(this, $arrayName)")
-			writeln("\t\t@JvmName(\"${type}_$name\") ${setModifier}set(value) { $type.$name.setValue(this, $arrayName, value) }")
-		}
+	enum class Modifier { Public, ProtectedSet, Protected }
+	val KSDeclaration.modifier get() = run {
+		for (annotation in annotations)
+			when (annotation.annotationType.aliasResolve().declaration.qualifiedNameStr) {
+				Public		::class.qualifiedName -> return@run Modifier.Public
+				ProtectedSet::class.qualifiedName -> return@run Modifier.ProtectedSet
+				Protected	::class.qualifiedName -> return@run Modifier.Protected
+			}
+		null
 	}
 
 	override fun write(out: BufferedWriter) = with (out) {
-		writeln("abstract class " + db.simpleNameStr + "Base : FlatDb() {")
 		var first = true
+		val dbModifier by lazy { db.modifier ?: throw TypeCastException("Not found annotation for " + db.qualifiedNameStr) }
+		writeln("sealed class " + db.simpleNameStr + "Base : FlatDb() {")
 		for (array in arrays) {
 			if (first) first = false else writeln()
-			writeStruct(array)
+			val arrayName = array.name
+			val type = array.typeClass.simpleNameStr
+			val arrayModifier by lazy { array.declaration.modifier ?: array.typeClass.modifier ?: dbModifier }
+			writeln("\tprivate val $arrayName = FlatArray($type)")
+			for (field in structFields[array.typeClass]) {
+				val name = field.name
+				val modifier = field.declaration.modifier ?: arrayModifier
+				val varModifier = if (modifier == Modifier.Protected) "protected " else ""
+				val setModifier = if (modifier == Modifier.ProtectedSet) "protected " else ""
+				writeln("\t${varModifier}var Ref<$type>.$name")
+				writeln("\t\t@JvmName(\"${type}_$name\") get() = $type.$name.getValue(this, $arrayName)")
+				writeln("\t\t@JvmName(\"${type}_$name\") ${setModifier}set(value) { $type.$name.setValue(this, $arrayName, value) }")
+			}
 		}
 		writeln("}")
 	}
