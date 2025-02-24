@@ -1,16 +1,10 @@
 package flatdb
 
-/*
-sealed class FlatField(val offset: Int, val size: Int) {
-	fun <T : FlatStruct> get(ref: Ref<T>, array: FlatArray<T>) =
-
-}
-class IntField(offset: Int, size: Int) : FlatField(offset, size)
-class StrField(offset: Int, size: Int) : FlatField(offset, size)
-class RefField<T>(offset: Int, size: Int) : FlatField(offset, size)
-class BoolField(offset: Int, size: Int) : FlatField(offset, size)*/
-
 abstract class FlatStruct {
+	@Target(AnnotationTarget.CLASS, AnnotationTarget.PROPERTY)
+	annotation class Protected
+	@Target(AnnotationTarget.CLASS, AnnotationTarget.PROPERTY)
+	annotation class ProtectedSet
 
 	var size = 0; private set
 	var usedBits = 0; private set(value) {

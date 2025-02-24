@@ -7,6 +7,7 @@ import com.google.devtools.ksp.symbol.KSDeclaration
 import com.google.devtools.ksp.symbol.KSFile
 import com.google.devtools.ksp.symbol.KSName
 import com.google.devtools.ksp.symbol.KSNode
+import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeAlias
 import com.google.devtools.ksp.symbol.KSTypeReference
@@ -37,10 +38,4 @@ fun KSTypeReference.aliasResolve(): KSType = run {
 			throw ClassNotFoundException("Can't resolve type " + name.asString())
 		}
 	}
-}
-
-
-class Field(val type: KSClassDeclaration, val name: String) {
-	override fun hashCode() = type.hashCode()
-	override fun equals(other: Any?) = other is Field && type == other.type
 }

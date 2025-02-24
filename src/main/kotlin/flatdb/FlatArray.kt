@@ -16,16 +16,3 @@ class FlatArray<S : FlatStruct> private constructor(val itemSize: Int) {
 	}
 	fun removeLast() = data.resize(data.size - itemSize)
 }
-/*
-typealias ArrayFactory<T> = () -> FlatArray<T>
-object FlatArrays {
-	private val arrayFactories = HashMap<Class<*>, ArrayFactory<*>>()
-
-	fun <T> putArrayFactory(factoryClass: Class<T>, factory: ArrayFactory<T>) { arrayFactories += factoryClass to factory }
-	inline fun <reified T> putArrayFactory(noinline factory: ArrayFactory<T>) = putArrayFactory(T::class.java, factory)
-
-	fun <T> get(factoryClass: Class<T>) = (arrayFactories[factoryClass] as ArrayFactory<T>?)?.let { it() }
-		?: throw ClassNotFoundException("Factory for FlatArray<" + factoryClass.name + "> wasn't found")
-	inline fun <reified T> get() = get(T::class.java)
-}
-*/

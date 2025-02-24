@@ -24,7 +24,7 @@ class Processor(
 			if (dbWriter.arrays.isEmpty())
 				logger.warn("Nothing to do with " + dbClass.qualifiedNameStr + ", no FlatArray fields was found", dbClass)
 			writers += dbWriter
-			writers += dbWriter.arrays.map { StructWriter(it.type) }
+			writers += dbWriter.arrays.map { StructWriter(it.typeClass) }
 		}
 	}
 
