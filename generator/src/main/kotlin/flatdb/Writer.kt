@@ -5,8 +5,13 @@ import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.FileLocation
+import com.google.devtools.ksp.symbol.KSAnnotated
+import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSDeclaration
+import com.google.devtools.ksp.symbol.KSPropertyDeclaration
+import com.google.devtools.ksp.symbol.KSPropertyGetter
+import com.google.devtools.ksp.symbol.KSType
 import java.io.BufferedWriter
 
 
@@ -48,61 +53,87 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 	override fun hashCode() = db.hashCode()
 	override fun equals(other: Any?) = other is DbWriter && db == other.db
 
-	val arrays = run {
-		val fields = LinkedHashSet<Field>()
+	val arrays = LinkedHashSet<Field>().also { arrays ->
 		for (property in db.getDeclaredProperties()) {
-			val baseField = Field(property)
-			if (baseField.typeClass.qualifiedNameStr != FlatArray::class.qualifiedName) break
-			val structType = baseField.type.arguments[0].type?.aliasResolve()
+			val flatArrayType = property.type.aliasResolve()
+				.takeIf { it.declaration.qualifiedNameStr == FlatArray::class.qualifiedName }
+				?: break
+			val structType = flatArrayType.arguments[0].type?.aliasResolve()
 				?: throw ClassNotFoundException("Couldn't get FlatArray type for " + property.qualifiedNameStr)
-			val structClass = (structType.declaration as? KSClassDeclaration)
-				?.takeIf { it.classKind == ClassKind.OBJECT }
+			val array = Field(property, structType)
+				.takeIf { it.typeClass.classKind == ClassKind.OBJECT }
 				?: throw ClassCastException(structType.declaration.qualifiedNameStr + " must be an object")
-			val field = Field(property, structType)
-			if (!fields.add(field))
-				throw Exception("Found multiple occurrences of FlatArray<" + structClass.qualifiedNameStr + "> in " + db.qualifiedNameStr)
+			if (!arrays.add(array))
+				throw Exception("Found multiple occurrences of FlatArray<" + array.typeClass.qualifiedNameStr + "> in " + db.qualifiedNameStr)
 		}
-		fields.toList()
-	}
+	}.toList()
 
 	override val imports get() = listOf(
 		*arrays.map { it.typeClass.qualifiedNameStr }.toTypedArray(),
+		*arrays.flatMap { structFields[it.typeClass].fields }.mapNotNull { it.rangeClass?.qualifiedNameStr }.toTypedArray(),
 		Ref::class.qualifiedName!!,
 		FlatDb::class.qualifiedName!!,
+		FlatArray::class.qualifiedName!!,
 	)
 
-
-	enum class Modifier { Public, ProtectedSet, Protected }
-	val KSDeclaration.modifier get() = run {
-		for (annotation in annotations)
-			when (annotation.annotationType.aliasResolve().declaration.qualifiedNameStr) {
-				Public		::class.qualifiedName -> return@run Modifier.Public
-				ProtectedSet::class.qualifiedName -> return@run Modifier.ProtectedSet
-				Protected	::class.qualifiedName -> return@run Modifier.Protected
-			}
-		null
-	}
-
 	override fun write(out: BufferedWriter) = with (out) {
+		val arrayByStruct by lazy { arrays.associateBy { it.typeClass.qualifiedNameStr } }
+		val rangeArrays = ArrayList<Field>()
+		val dbModifier by lazy { db.modifier }
 		var first = true
-		val dbModifier by lazy { db.modifier ?: throw TypeCastException("Not found annotation for " + db.qualifiedNameStr) }
 		writeln("sealed class " + db.simpleNameStr + "Base : FlatDb() {")
 		for (array in arrays) {
-			if (first) first = false else writeln()
+			val rangeFields = ArrayList<StructField>()
 			val arrayName = array.name
 			val type = array.typeClass.simpleNameStr
-			val arrayModifier by lazy { array.declaration.modifier ?: array.typeClass.modifier ?: dbModifier }
+			val arrayModifier = array.declaration.modifier
+			val struct = structFields[array.typeClass]
+			val rangeLines = ArrayList<String>()
+			if (first) first = false else writeln()
 			writeln("\tprivate val $arrayName = FlatArray($type)")
-			for (field in structFields[array.typeClass]) {
+			for (field in struct.fields) {
 				val name = field.name
-				val modifier = field.declaration.modifier ?: arrayModifier
+				val modifier = arrayModifier ?: field.declaration.modifier ?: dbModifier ?: struct.modifier
 				val varModifier = if (modifier == Modifier.Protected) "protected " else ""
 				val setModifier = if (modifier == Modifier.ProtectedSet) "protected " else ""
 				writeln("\t${varModifier}var Ref<$type>.$name")
 				writeln("\t\t@JvmName(\"${type}_$name\") get() = $type.$name.getValue(this, $arrayName)")
 				writeln("\t\t@JvmName(\"${type}_$name\") ${setModifier}set(value) { $type.$name.setValue(this, $arrayName, value) }")
+				field.rangeName?.let { rangeName ->
+					rangeFields += field
+					val rangeType = field.rangeClass?.qualifiedNameStr
+					rangeLines += "\t${varModifier}val Ref<$type>.$rangeName"
+					rangeLines += "\t\t@JvmName(\"${type}_$rangeName\") get() = Ref.Range($name, next.$name, ${rangeType}.size)"
+				}
+			}
+
+			for (rangeLine in rangeLines) writeln(rangeLine)
+
+			if (rangeFields.isNotEmpty()) {
+				rangeArrays += array
+				val modifier = arrayModifier ?: dbModifier ?: struct.modifier
+				val funModifier = if (modifier == Modifier.Protected || modifier == Modifier.ProtectedSet) "protected " else ""
+				writeln("\t${funModifier}fun FlatArray<$type>.endRanges() = $arrayName.validEndRef.let {")
+				for (field in rangeFields) {
+					val rangeClass = field.rangeClass
+					val refArrayName = rangeClass?.let { arrayByStruct[rangeClass.qualifiedNameStr]?.name }
+						?: throw ClassNotFoundException(
+							"Not found referenced class " + (rangeClass?.qualifiedNameStr?:"???") +
+							" for range field " + field.declaration.qualifiedNameStr)
+					writeln("\t\tit.${field.name} = Ref($refArrayName.size)")
+				}
+				writeln("\t}")
 			}
 		}
+
+		if (rangeArrays.isNotEmpty()) {
+			val modifier = if (dbModifier == Modifier.Protected || dbModifier == Modifier.ProtectedSet) "protected " else ""
+			writeln()
+			writeln("\t${modifier}fun endAllRanges() {")
+			for (array in rangeArrays) writeln("\t\t${array.name}.endRanges()")
+			writeln("\t}")
+		}
+
 		writeln("}")
 	}
 }

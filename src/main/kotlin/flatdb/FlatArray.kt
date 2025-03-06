@@ -2,12 +2,11 @@ package flatdb
 
 import flatdb.util.IntArrayList
 
-class FlatArray<S : FlatStruct> private constructor(val itemSize: Int) {
-	constructor(struct: S) : this(struct.size)
+class FlatArray<S : FlatStruct>(val struct: S) {
 	internal val data = IntArrayList()
+	val itemSize = struct.size
 	val size get() = data.size / itemSize
 
-	val endRef get() = Ref<S>(data.size)
 	fun add() = endRef.also { data.resize(data.size + itemSize) }
 	fun add(count: Int) = run {
 		val begin = endRef
@@ -15,4 +14,7 @@ class FlatArray<S : FlatStruct> private constructor(val itemSize: Int) {
 		Ref.Range(begin, endRef, itemSize)
 	}
 	fun removeLast() = data.resize(data.size - itemSize)
+
+	val endRef get() = Ref<S>(data.size)
+	val validEndRef get() = add().also { removeLast() }
 }

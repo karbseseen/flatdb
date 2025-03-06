@@ -6,6 +6,7 @@ class FlatString(
 	private val begin: Int,
 	override val length: Int,
 ) : CharSequence {
+	companion object : FlatStruct()
 
 	override fun get(index: Int) = data[begin + index]
 	override fun subSequence(startIndex: Int, endIndex: Int) =
@@ -51,6 +52,5 @@ class FlatString(
 			override fun toString() = stringView.toString()
 		}
 	}
-
 
 }
