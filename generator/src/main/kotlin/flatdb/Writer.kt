@@ -101,7 +101,7 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 				writeln("\t\t@JvmName(\"${type}_$name\") ${setModifier}set(value) { $type.$name.setValue(this, $arrayName, value) }")
 				field.rangeName?.let { rangeName ->
 					rangeFields += field
-					val rangeType = field.rangeClass?.qualifiedNameStr
+					val rangeType = field.rangeClass?.simpleNameStr
 					rangeLines += "\t${varModifier}val Ref<$type>.$rangeName"
 					rangeLines += "\t\t@JvmName(\"${type}_$rangeName\") get() = Ref.Range($name, next.$name, ${rangeType}.size)"
 				}
@@ -113,7 +113,7 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 				rangeArrays += array
 				val modifier = arrayModifier ?: dbModifier ?: struct.modifier
 				val funModifier = if (modifier == Modifier.Protected || modifier == Modifier.ProtectedSet) "protected " else ""
-				writeln("\t${funModifier}fun FlatArray<$type>.endRanges() = $arrayName.validEndRef.let {")
+				writeln("\t@JvmName(\"${type}_endRanges\") ${funModifier}fun FlatArray<$type>.endRanges() = $arrayName.validEndRef.let {")
 				for (field in rangeFields) {
 					val rangeClass = field.rangeClass
 					val refArrayName = rangeClass?.let { arrayByStruct[rangeClass.qualifiedNameStr]?.name }
