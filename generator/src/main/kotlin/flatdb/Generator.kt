@@ -43,7 +43,7 @@ class Processor(
 		process(resolver, Generate::class)
 	}
 
-	override fun finish() = writers.write(codeGenerator)
+	override fun finish() = codeGenerator.write(writers)
 }
 
 @AutoService(SymbolProcessorProvider::class)

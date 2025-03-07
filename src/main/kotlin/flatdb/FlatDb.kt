@@ -1,8 +1,5 @@
 package flatdb
 
-import flatdb.util.decodeInt
-import flatdb.util.encodeInt
-import java.lang.reflect.ParameterizedType
 import kotlin.math.max
 
 
@@ -41,7 +38,7 @@ abstract class FlatDb {
 		override fun get(needSave: (FlatString) -> Boolean) = run {
 			val view = FlatString(data, begin, end - begin)
 			if (needSave(view)) Ref<FlatString.Companion>(dataOffset + end).also {
-				encodeInt(view.length, ::put)
+				put(view.length.toChar())
 				begin = end
 			}
 			else Ref<FlatString.Companion>(-1).also { end = begin }
@@ -62,8 +59,7 @@ abstract class FlatDb {
 	fun setData(allocator: Allocator) { strings = allocator.flatten() }
 
 	fun Ref<FlatString.Companion>.get() = run {
-		var offset = this.offset
-		val length = decodeInt { strings[offset++] }
-		FlatString(strings, this.offset - length, length)
+		val length = strings[offset].code
+		FlatString(strings, offset - length, length)
 	}
 }

@@ -15,9 +15,9 @@ interface Writer {
 	fun write(out: BufferedWriter)
 }
 
-fun Iterable<Writer>.write(codeGenerator: CodeGenerator) {
-	for ((file, writers) in distinct().groupBy { it.declaration.file }) codeGenerator
-		.createNewFile(Dependencies(true, file), file.packageName.asString(), file.simpleName)
+fun CodeGenerator.write(writers: Iterable<Writer>) {
+	for ((file, writers) in writers.distinct().groupBy { it.declaration.file })
+		createNewFile(Dependencies(true, file), file.packageName.asString(), file.simpleName)
 		.bufferedWriter()
 		.use { out ->
 			file.packageName.asString().takeIf { it.isNotEmpty() }?.let { packageName -> out.writeln("package $packageName\n") }

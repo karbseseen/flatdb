@@ -13,8 +13,8 @@ class IntArrayList(initialCapacity: Int = 1024) : AbstractMutableList<Int>() {
 
 	fun resize(newSize: Int) {
 		if (data.size < newSize) {
-			val actualSize = 1 shl (32 - (newSize - 1).countLeadingZeroBits())
-			data = IntArray(actualSize) { if (it < size) data[it] else 0 }
+			val actualNewSize = 1 shl (32 - (newSize - 1).countLeadingZeroBits())
+			data = IntArray(actualNewSize) { if (it < size) data[it] else 0 }
 		}
 		size = newSize
 	}
