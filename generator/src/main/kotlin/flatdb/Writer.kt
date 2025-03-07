@@ -5,13 +5,7 @@ import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.FileLocation
-import com.google.devtools.ksp.symbol.KSAnnotated
-import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.KSDeclaration
-import com.google.devtools.ksp.symbol.KSPropertyDeclaration
-import com.google.devtools.ksp.symbol.KSPropertyGetter
-import com.google.devtools.ksp.symbol.KSType
 import java.io.BufferedWriter
 
 
@@ -57,7 +51,7 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 		for (property in db.getDeclaredProperties()) {
 			val flatArrayType = property.type.aliasResolve()
 				.takeIf { it.declaration.qualifiedNameStr == FlatArray::class.qualifiedName }
-				?: break
+				?: continue
 			val structType = flatArrayType.arguments[0].type?.aliasResolve()
 				?: throw ClassNotFoundException("Couldn't get FlatArray type for " + property.qualifiedNameStr)
 			val array = Field(property, structType)
