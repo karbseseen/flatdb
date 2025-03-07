@@ -4,6 +4,7 @@ import com.google.auto.service.AutoService
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
+import kotlin.reflect.KClass
 
 
 class Processor(
@@ -15,13 +16,13 @@ class Processor(
 	val structFields = StructsFields()
 	val writers = ArrayList<Writer>()
 
-	fun process(symbols: Sequence<KSAnnotated>) = symbols.forEach { symbolClass ->
-		if (symbolClass !is KSClassDeclaration) return@forEach
+	fun process(symbolClass: KSAnnotated) {
+		if (symbolClass !is KSClassDeclaration) return
 
 		for (parentType in symbolClass.superTypes) {
 			val parentClass = parentType.aliasResolve().declaration
 			if (parentClass is KSClassDeclaration) {
-				if (parentClass.qualifiedName?.asString() == FlatStruct::class.qualifiedName) return@forEach
+				if (parentClass.qualifiedName?.asString() == FlatStruct::class.qualifiedName) return
 				else break
 			}
 		}
@@ -33,10 +34,13 @@ class Processor(
 		writers += dbWriter.arrays.map { StructWriter(it.typeClass) }
 	}
 
+	fun process(resolver: Resolver, annotation: KClass<*>): Unit =
+		resolver.getSymbolsWithAnnotation(annotation.qualifiedName!!).forEach(::process)
+
 	override fun process(resolver: Resolver) = emptyList<KSAnnotated>().also {
-		process(resolver.getSymbolsWithAnnotation(Public::class.qualifiedName!!))
-		process(resolver.getSymbolsWithAnnotation(ProtectedSet::class.qualifiedName!!))
-		process(resolver.getSymbolsWithAnnotation(Protected::class.qualifiedName!!))
+		for (modifier in Modifier.entries)
+			process(resolver, modifier.annotation)
+		process(resolver, Generate::class)
 	}
 
 	override fun finish() = writers.write(codeGenerator)

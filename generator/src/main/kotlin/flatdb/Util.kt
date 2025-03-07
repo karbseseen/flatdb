@@ -4,6 +4,7 @@ import com.google.devtools.ksp.symbol.*
 import java.io.BufferedWriter
 import java.io.FileNotFoundException
 import java.io.InvalidClassException
+import kotlin.reflect.KClass
 
 
 fun BufferedWriter.writeln(line: String = "") = write("$line\n")
@@ -16,22 +17,6 @@ val KSDeclaration.file get() = containingFile
 
 val KSFile.simpleName get() = if (fileName.endsWith(".kt")) fileName.substring(0, fileName.length - 3) + "Gen"
 	else throw FileNotFoundException("$fileName doesn't end with \".kt\"")
-
-enum class Modifier { Public, ProtectedSet, Protected }
-fun <T> KSAnnotated.getFromAnnotation(getter: (KSAnnotation, String) -> T?) = run {
-	for (annotation in annotations)
-		getter(annotation, annotation.annotationType.aliasResolve().declaration.qualifiedNameStr)
-			?.let { return@run it }
-	null
-}
-val KSDeclaration.modifier get() = getFromAnnotation { _, name ->
-	when (name) {
-		Public		::class.qualifiedName -> Modifier.Public
-		ProtectedSet::class.qualifiedName -> Modifier.ProtectedSet
-		Protected	::class.qualifiedName -> Modifier.Protected
-		else -> null
-	}
-}
 
 val KSType.classDeclaration get() = declaration as KSClassDeclaration
 

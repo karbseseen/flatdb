@@ -93,9 +93,9 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 			writeln("\tprivate val $arrayName = FlatArray($type)")
 			for (field in struct.fields) {
 				val name = field.name
-				val modifier = arrayModifier ?: field.declaration.modifier ?: dbModifier ?: struct.modifier
-				val varModifier = if (modifier == Modifier.Protected) "protected " else ""
-				val setModifier = if (modifier == Modifier.ProtectedSet) "protected " else ""
+				val modifier = arrayModifier ?: field.declaration.modifier ?: dbModifier ?: struct.modifier ?: Modifier.Public
+				val varModifier = if (!modifier.onlySet) modifier.value else ""
+				val setModifier = if ( modifier.onlySet) modifier.value else ""
 				writeln("\t${varModifier}var Ref<$type>.$name")
 				writeln("\t\t@JvmName(\"${type}_$name\") get() = $type.$name.getValue(this, $arrayName)")
 				writeln("\t\t@JvmName(\"${type}_$name\") ${setModifier}set(value) { $type.$name.setValue(this, $arrayName, value) }")
@@ -111,9 +111,8 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 
 			if (rangeFields.isNotEmpty()) {
 				rangeArrays += array
-				val modifier = arrayModifier ?: dbModifier ?: struct.modifier
-				val funModifier = if (modifier == Modifier.Protected || modifier == Modifier.ProtectedSet) "protected " else ""
-				writeln("\t@JvmName(\"${type}_endRanges\") ${funModifier}fun FlatArray<$type>.endRanges() = $arrayName.validEndRef.let {")
+				val modifier = arrayModifier ?: dbModifier ?: struct.modifier ?: Modifier.Public
+				writeln("\t@JvmName(\"${type}_endRanges\") ${modifier.value}fun FlatArray<$type>.endRanges() = $arrayName.validEndRef.let {")
 				for (field in rangeFields) {
 					val rangeClass = field.rangeClass
 					val refArrayName = rangeClass?.let { arrayByStruct[rangeClass.qualifiedNameStr]?.name }
