@@ -31,7 +31,7 @@ class Processor(
 		if (dbWriter.arrays.isEmpty())
 			logger.warn("Nothing to do with " + symbolClass.qualifiedNameStr + ", no FlatArray fields was found", symbolClass)
 		writers += dbWriter
-		writers += dbWriter.arrays.map { StructWriter(it.typeClass) }
+		writers += dbWriter.arrays.map { StructWriter(it.typeClass, structFields) }
 	}
 
 	fun process(resolver: Resolver, annotation: KClass<*>): Unit =

@@ -30,13 +30,14 @@ fun CodeGenerator.write(writers: Iterable<Writer>) {
 		}
 }
 
-class StructWriter(val struct: KSClassDeclaration) : Writer {
+class StructWriter(val struct: KSClassDeclaration, val structFields: StructsFields) : Writer {
 	override val declaration get() = struct
 	override val imports get() = listOf(Ref::class.qualifiedName!!)
 	override fun write(out: BufferedWriter) = with (out) {
+		val def = structFields[struct].modifier?.takeIf { !it.onlySet }?.value.orEmpty() + "val"
 		val structType = struct.simpleNameStr
-		writeln("val Ref<$structType>.next @JvmName(\"${structType}_next\") get() = Ref<$structType>(offset + $structType.size)")
-		writeln("val Ref<$structType>.prev @JvmName(\"${structType}_prev\") get() = Ref<$structType>(offset - $structType.size)")
+		writeln("$def Ref<$structType>.next @JvmName(\"${structType}_next\") get() = Ref<$structType>(offset + $structType.size)")
+		writeln("$def Ref<$structType>.prev @JvmName(\"${structType}_prev\") get() = Ref<$structType>(offset - $structType.size)")
 	}
 	override fun hashCode() = struct.hashCode()
 	override fun equals(other: Any?) = other is StructWriter && struct == other.struct

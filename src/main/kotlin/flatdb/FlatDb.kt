@@ -35,14 +35,13 @@ abstract class FlatDb {
 			}
 			data[end++] = char
 		}
-		override fun get(needSave: (FlatString) -> Boolean) = run {
-			val view = FlatString(data, begin, end - begin)
-			if (needSave(view)) Ref<FlatString.Companion>(dataOffset + end).also {
-				put(view.length.toChar())
-				begin = end
-			}
-			else Ref<FlatString.Companion>(-1).also { end = begin }
+
+		override val stringView get() = FlatString(data, begin, end - begin)
+		override fun save(view: FlatString) = Ref<FlatString.Companion>(dataOffset + end).also {
+			put((end - begin).toChar())
+			begin = end
 		}
+		override fun clear() { end = begin }
 
 		fun flatten() = run {
 			val allBytes = CharArray(dataOffset + end)

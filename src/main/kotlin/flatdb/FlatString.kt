@@ -1,5 +1,7 @@
 package flatdb
 
+import flatdb.FlatString.Allocator.Distinct
+
 
 class FlatString(
 	private val data: CharArray,
@@ -16,18 +18,26 @@ class FlatString(
 	override fun hashCode() = run {
 		if (hash == 0)
 			for (index in begin until begin + length)
-				hash = hash * 31 + (data[index].toInt() and 0xff)
+				hash = hash * 31 + data[index].code
 		hash
 	}
 	override fun equals(other: Any?) =
 		other is FlatString &&
 		length == other.length &&
-		(0 until length).all { index -> data[begin + index] == other.data[other.begin + index]  }
+		(0 until length).all { index -> data[begin + index] == other.data[other.begin + index] }
 	override fun toString() = String(data, begin, length)
 
 	interface Allocator<T> {
 		fun put(char: Char)
-		fun get(needSave: (FlatString) -> Boolean): T
+		val stringView: FlatString
+		/**Is valid forever*/
+		fun save(view: FlatString): T
+		/**Is valid forever*/
+		fun constString() = save(stringView)
+		/**Is valid until next put*/
+		fun clear()
+		/**Is valid until next put*/
+		fun tempString() = stringView.also { clear() }
 
 		class Simple(initialCapacity: Int = 1024 * 4) : Allocator<FlatString> {
 			private var data = CharArray(initialCapacity)
@@ -43,14 +53,22 @@ class FlatString(
 				data[end++] = char
 			}
 
-			private fun save() { begin = end  }			//Is valid forever
-			private fun clear() { end = begin  }		//Is valid until next put
-			private val stringView get() = FlatString(data, begin, currentLength)
-			fun constString() = stringView.also { save() }
-			fun tempString() = stringView.also { clear() }
-			override fun get(needSave: (FlatString) -> Boolean) = stringView.also { if (needSave(it)) save() else clear() }
-			override fun toString() = stringView.toString()
+			override val stringView get() = FlatString(data, begin, currentLength)
+			override fun save(view: FlatString) = view.also { begin = end  }
+			override fun clear() { end = begin  }
+
+		}
+
+		class Distinct<T, A : Allocator<T>> internal constructor(val allocator: A) : Allocator<T> {
+			val values = HashMap<FlatString, T>()
+			override fun put(char: Char) = allocator.put(char)
+			override val stringView get() = allocator.stringView
+			override fun save(view: FlatString) =
+				values.compute(stringView) { _,value -> value?.also { allocator.clear() } ?: allocator.save(view) }!!
+			override fun clear() = allocator.clear()
 		}
 	}
 
 }
+
+fun <T, A: FlatString.Allocator<T>> A.distinct() = Distinct(this)
