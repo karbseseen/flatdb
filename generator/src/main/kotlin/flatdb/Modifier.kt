@@ -2,6 +2,7 @@ package flatdb
 
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
+import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSDeclaration
 import kotlin.reflect.KClass
 
@@ -22,4 +23,10 @@ fun <T> KSAnnotated.getFromAnnotation(getter: (KSAnnotation, String) -> T?) = ru
 	null
 }
 
-val KSDeclaration.modifier get() = getFromAnnotation { _, name -> Modifier.byAnnotation[name] }
+private val KSClassDeclaration.isInternal: Boolean get() =
+	this.modifiers.contains(com.google.devtools.ksp.symbol.Modifier.INTERNAL) ||
+	(parentDeclaration as? KSClassDeclaration)?.isInternal == true
+
+val KSDeclaration.modifier get() =
+	getFromAnnotation { _, name -> Modifier.byAnnotation[name] }
+	?: Modifier.Internal.takeIf { (this as? KSClassDeclaration)?.isInternal == true }

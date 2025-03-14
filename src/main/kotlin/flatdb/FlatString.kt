@@ -1,15 +1,13 @@
 package flatdb
 
-import flatdb.FlatString.Allocator.Distinct
+import kotlin.math.max
 
 
-class FlatString(
-	private val data: CharArray,
-	private val begin: Int,
+open class FlatString(
+	protected val data: CharArray,
+	protected val begin: Int,
 	override val length: Int,
 ) : CharSequence {
-	companion object : FlatStruct()
-
 	override fun get(index: Int) = data[begin + index]
 	override fun subSequence(startIndex: Int, endIndex: Int) =
 		FlatString(data, begin + startIndex, endIndex - startIndex)
@@ -27,48 +25,53 @@ class FlatString(
 		(0 until length).all { index -> data[begin + index] == other.data[other.begin + index] }
 	override fun toString() = String(data, begin, length)
 
-	interface Allocator<T> {
+	interface Allocator<S: FlatString> {
+		val currentLength: Int
+
 		fun put(char: Char)
-		val stringView: FlatString
+		fun put(chars: CharSequence) = chars.forEach(::put)
+
+		val view: S
 		/**Is valid forever*/
-		fun save(view: FlatString): T
+		fun save(view: S): S
 		/**Is valid forever*/
-		fun constString() = save(stringView)
+		fun string() = save(view)
 		/**Is valid until next put*/
 		fun clear()
 		/**Is valid until next put*/
-		fun tempString() = stringView.also { clear() }
+		fun tempString() = view.also { clear() }
 
-		class Simple(initialCapacity: Int = 1024 * 4) : Allocator<FlatString> {
-			private var data = CharArray(initialCapacity)
-			private var begin = 0
-			private var end = 0
-			val currentLength get() = end - begin
+		fun distinct() = Distinct(this)
 
-			override fun put(char: Char) {
-				if (end == data.size) data = CharArray(data.size * 2).also {
-					val (oldBegin, oldEnd) = (begin to end).also { begin = 0; end = 0 }
-					for (i in oldBegin until oldEnd) it[end++] = data[i]
-				}
-				data[end++] = char
+		abstract class Base<S: FlatString>(initialCapacity: Int = 1024 * 2) : Allocator<S> {
+			protected var data = CharArray(max(initialCapacity, 2))
+			protected var begin = 0
+			protected var end = 0
+			override val currentLength get() = end - begin
+
+			protected open fun expandArray() {
+				data = data.copyInto(CharArray(data.size * 2), 0, begin, end)
+				end = currentLength
+				begin = 0
 			}
-
-			override val stringView get() = FlatString(data, begin, currentLength)
-			override fun save(view: FlatString) = view.also { begin = end  }
-			override fun clear() { end = begin  }
-
+			protected fun ensureHaveSpace() { if (end == data.size) expandArray() }
+			override fun put(char: Char) { ensureHaveSpace(); data[end++] = char }
+			override fun save(view: S) = view.also { begin = end }
+			override fun clear() { end = begin }
 		}
 
-		class Distinct<T, A : Allocator<T>> internal constructor(val allocator: A) : Allocator<T> {
-			val values = HashMap<FlatString, T>()
-			override fun put(char: Char) = allocator.put(char)
-			override val stringView get() = allocator.stringView
-			override fun save(view: FlatString) =
-				values.compute(stringView) { _,value -> value?.also { allocator.clear() } ?: allocator.save(view) }!!
-			override fun clear() = allocator.clear()
+		open class Simple(initialCapacity: Int = 1024 * 2) : Base<FlatString>(initialCapacity) {
+			override val view get() = FlatString(data, begin, currentLength)
+		}
+
+		class Distinct<S: FlatString> internal constructor(val base: Allocator<S>) : Allocator<S> {
+			val values = HashMap<S, S>()
+			override val currentLength get() = base.currentLength
+			override fun put(char: Char) = base.put(char)
+			override val view get() = base.view
+			override fun save(view: S) =
+				values[view]?.also { base.clear() } ?: base.save(view).also { values[it] = it }
+			override fun clear() = base.clear()
 		}
 	}
-
 }
-
-fun <T, A: FlatString.Allocator<T>> A.distinct() = Distinct(this)

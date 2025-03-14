@@ -1,7 +1,13 @@
 package flatdb
 
+import java.time.ZoneOffset
 import kotlin.math.max
+import kotlin.math.min
 
+
+private var CharArray.offset
+	get() = this[0].code or (this[1].code shl 16)
+	set(value) { this[0] = value.toChar(); this[1] = (value shr 16).toChar() }
 
 abstract class FlatDb {
 	private var arrays: HashMap<Class<*>, FlatArray<*>>? = HashMap()
@@ -15,50 +21,53 @@ abstract class FlatDb {
 		} ?: throw ClassNotFoundException("Can't get FlatArray<" + struct.javaClass.name + ">")
 
 
-	class Allocator internal constructor(existingData: CharArray, initialCapacity: Int) :
-		FlatString.Allocator<Ref<FlatString.Companion>>
+	class String(data: CharArray, begin: Int, length: Int) : FlatString(data, begin, length) {
+		val ref get() = StrRef(data.offset + begin)
+	}
+	class Allocator internal constructor(initialCapacity: Int, offset: Int) :
+		FlatString.Allocator.Base<String>(initialCapacity)
 	{
-		private class Data(val bytes: CharArray, val actualSize: Int)
-		private val prevData = arrayListOf(Data(existingData, existingData.size))
-		private var dataOffset = existingData.size
-		private var data = CharArray(max(initialCapacity, 1))
-		private var begin = 0
-		private var end = 0
+		private val history = ArrayList<CharArray>()
 
-		override fun put(char: Char) {
-			if (end == data.size) {
-				prevData += Data(data, begin)
-				dataOffset += begin
-				data = data.copyInto(CharArray(data.size * 2), 0, begin, end)
-				end -= begin
-				begin = 0
-			}
-			data[end++] = char
+		private fun applyOffset(offset: Int) {
+			begin = 3
+			end += 3
+			data.offset = offset
 		}
 
-		override val stringView get() = FlatString(data, begin, end - begin)
-		override fun save(view: FlatString) = Ref<FlatString.Companion>(dataOffset + end).also {
-			put((end - begin).toChar())
-			begin = end
-		}
-		override fun clear() { end = begin }
+		init { applyOffset(offset) }
 
-		fun flatten() = run {
-			val allBytes = CharArray(dataOffset + end)
-			prevData.fold(0) { offset, data ->
-				data.bytes.copyInto(allBytes, offset, 0, data.actualSize)
-				offset + data.actualSize
-			}
-			data.copyInto(allBytes, dataOffset, 0, end)
+		override fun expandArray() {
+			val newOffset = data.offset + begin - 3
+			history += data
+			super.expandArray()
+			applyOffset(newOffset)
+		}
+		override val view get() = String(data, begin, currentLength)
+		override fun save(view: String) = run {
+			data[begin - 1] = currentLength.toChar()
+			ensureHaveSpace()
+			end++
+			super.save(view)
+		}
+
+		internal fun flatten() = CharArray(data.offset + begin - 3).also { allData ->
+			history += data
+			history.forEach { it.copyInto(allData, it.offset, 2, min(it.size - 2, allData.size - it.offset)) }
+
+			val last = view
+			history.clear()
+			begin = 3
+			end = 3
+			data.offset = allData.size
+			put(last)
 		}
 	}
 
 	private var strings = CharArray(0)
-	fun createAllocator(initialCapacity: Int = 1024 * 16) = Allocator(strings, initialCapacity)
-	fun setData(allocator: Allocator) { strings = allocator.flatten() }
+	fun createAllocator(initialCapacity: Int = 1024 * 16) = Allocator(initialCapacity, strings.size)
+	fun setData(allocator: Allocator) { strings = strings.copyInto(allocator.flatten()) }
 
-	fun Ref<FlatString.Companion>.get() = run {
-		val length = strings[offset].code
-		FlatString(strings, offset - length, length)
-	}
+	val StrRef.size get() = strings[offset - 1].code
+	fun StrRef.get() = FlatString(strings, offset, size)
 }

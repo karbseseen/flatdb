@@ -10,20 +10,17 @@ abstract class FlatStruct {
 
 	private fun fieldSizeException(fieldSize: Int): Nothing =
 		throw Exception("Invalid field size of $fieldSize while remaining bit count is $remainingBits")
-	private fun <T> addField(field: (Int) -> T) = run {
-		if (bitSize % 32 != 0) fieldSizeException(32)
-		field(bitSize / 32).also { bitSize += 32 }
-	}
-	private fun <T> addPartField(bits: Int, field: (Int, Int) -> T) = run {
-		if (bits > remainingBits) fieldSizeException(bits)
-		field(bitSize, bitSize + bits).also { bitSize += bits }
-	}
 
-	protected fun int() 							= addField(::IntField)
-	protected fun int(size: Int)					= addPartField(size, ::IntPartField)
-	protected fun bool() 							= addPartField(1, ::BoolPartField)
+	protected fun int() =
+		if (bitSize % 32 != 0) fieldSizeException(32)
+		else IntField(bitSize / 32).also { bitSize += 32 }
+	protected fun int(bits: Int) =
+		if (bits > remainingBits) fieldSizeException(bits)
+		else IntPartField(bitSize, bitSize + bits).also { bitSize += bits }
+
+	protected fun bool() 							= BoolPartField(int(1))
 	protected fun <R : FlatStruct> ref()			= RefField<R>(int())
-	protected fun <R : FlatStruct> ref(size: Int)	= RefPartField<R>(int(size))
-	protected fun str()								= ref<FlatString.Companion>()
-	protected fun str(size: Int)					= ref<FlatString.Companion>(size)
+	protected fun <R : FlatStruct> ref(bits: Int)	= RefPartField<R>(int(bits))
+	protected fun str()								= StrField(int())
+	protected fun str(bits: Int)					= StrPartField(int(bits))
 }
