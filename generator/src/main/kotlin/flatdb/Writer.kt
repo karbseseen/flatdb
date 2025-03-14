@@ -35,9 +35,10 @@ class StructWriter(val struct: KSClassDeclaration, val structFields: StructsFiel
 	override val imports get() = listOf(Ref::class.qualifiedName!!)
 	override fun write(out: BufferedWriter) = with (out) {
 		val def = structFields[struct].modifier?.takeIf { !it.onlySet }?.value.orEmpty() + "val"
-		val structType = struct.simpleNameStr
-		writeln("$def Ref<$structType>.next @JvmName(\"${structType}_next\") get() = Ref<$structType>(offset + $structType.size)")
-		writeln("$def Ref<$structType>.prev @JvmName(\"${structType}_prev\") get() = Ref<$structType>(offset - $structType.size)")
+		val type = struct.callName
+		val jvmType = type.replace(".", "")
+		writeln("$def Ref<$type>.next @JvmName(\"${jvmType}_next\") get() = Ref<$type>(offset + $type.size)")
+		writeln("$def Ref<$type>.prev @JvmName(\"${jvmType}_prev\") get() = Ref<$type>(offset - $type.size)")
 	}
 	override fun hashCode() = struct.hashCode()
 	override fun equals(other: Any?) = other is StructWriter && struct == other.struct
@@ -64,8 +65,8 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 	}.toList()
 
 	override val imports get() = listOf(
-		*arrays.map { it.typeClass.qualifiedNameStr }.toTypedArray(),
-		*arrays.flatMap { structFields[it.typeClass].fields }.mapNotNull { it.rangeClass?.qualifiedNameStr }.toTypedArray(),
+		*arrays.map { it.typeClass.import }.toTypedArray(),
+		*arrays.flatMap { structFields[it.typeClass].fields }.mapNotNull { it.rangeClass?.import }.toTypedArray(),
 		Ref::class.qualifiedName!!,
 		FlatDb::class.qualifiedName!!,
 		FlatArray::class.qualifiedName!!,
@@ -79,8 +80,12 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 		writeln("sealed class " + db.simpleNameStr + "Base : FlatDb() {")
 		for (array in arrays) {
 			val rangeFields = ArrayList<StructField>()
+
 			val arrayName = array.name
-			val type = array.typeClass.simpleNameStr
+			val type = array.typeClass.callName
+			val jvmType = type.replace(".", "")
+			val valueArg = if (arrayName == "value") "v" else "value"
+
 			val arrayModifier = array.declaration.modifier
 			val struct = structFields[array.typeClass]
 			val rangeLines = ArrayList<String>()
@@ -92,13 +97,13 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 				val varModifier = if (!modifier.onlySet) modifier.value else ""
 				val setModifier = if ( modifier.onlySet) modifier.value else ""
 				writeln("\t${varModifier}var Ref<$type>.$name")
-				writeln("\t\t@JvmName(\"${type}_$name\") get() = $type.$name.getValue(this, $arrayName)")
-				writeln("\t\t@JvmName(\"${type}_$name\") ${setModifier}set(value) { $type.$name.setValue(this, $arrayName, value) }")
+				writeln("\t\t@JvmName(\"${jvmType}_$name\") get() = $type.$name.getValue(this, $arrayName)")
+				writeln("\t\t@JvmName(\"${jvmType}_$name\") ${setModifier}set($valueArg) { $type.$name.setValue(this, $arrayName, $valueArg) }")
 				field.rangeName?.let { rangeName ->
 					rangeFields += field
-					val rangeType = field.rangeClass?.simpleNameStr
+					val rangeType = field.rangeClass?.callName
 					rangeLines += "\t${varModifier}val Ref<$type>.$rangeName"
-					rangeLines += "\t\t@JvmName(\"${type}_$rangeName\") get() = Ref.Range($name, next.$name, ${rangeType}.size)"
+					rangeLines += "\t\t@JvmName(\"${jvmType}_$rangeName\") get() = Ref.Range($name, next.$name, ${rangeType}.size)"
 				}
 			}
 
@@ -107,7 +112,7 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 			if (rangeFields.isNotEmpty()) {
 				rangeArrays += array
 				val modifier = arrayModifier ?: dbModifier ?: struct.modifier ?: Modifier.Public
-				writeln("\t@JvmName(\"${type}_endRanges\") ${modifier.value}fun FlatArray<$type>.endRanges() = $arrayName.validEndRef.let {")
+				writeln("\t@JvmName(\"${jvmType}_endRanges\") ${modifier.value}fun FlatArray<$type>.endRanges() = $arrayName.validEndRef.let {")
 				for (field in rangeFields) {
 					val rangeClass = field.rangeClass
 					val refArrayName = rangeClass?.let { arrayByStruct[rangeClass.qualifiedNameStr]?.name }
