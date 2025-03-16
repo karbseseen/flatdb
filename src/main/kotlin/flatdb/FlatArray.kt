@@ -3,10 +3,12 @@ package flatdb
 import flatdb.util.IntArrayList
 
 
-class FlatArray<S : FlatStruct>(val struct: S) : Iterable<Ref<S>> {
+class FlatArray<S : FlatStruct>(val struct: S) : Sequence<Ref<S>> {
 	internal var data = IntArrayList()
 	val itemSize = struct.size
 	val size get() = data.size / itemSize
+
+	operator fun get(index: Int) = Ref<S>(index * itemSize)
 
 	fun add() = endRef.also { data.resize(data.size + itemSize) }
 	fun add(count: Int) = run {
@@ -15,6 +17,7 @@ class FlatArray<S : FlatStruct>(val struct: S) : Iterable<Ref<S>> {
 		Ref.Range(begin, endRef, itemSize)
 	}
 	fun removeLast() = data.resize(data.size - itemSize)
+	fun clear() = data.clear()
 
 	val endRef get() = Ref<S>(data.size)
 	val validEndRef get() = add().also { removeLast() }

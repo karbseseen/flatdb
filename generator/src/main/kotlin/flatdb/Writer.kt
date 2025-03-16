@@ -34,11 +34,12 @@ class StructWriter(val struct: KSClassDeclaration, val structFields: StructsFiel
 	override val declaration get() = struct
 	override val imports get() = listOf(Ref::class.qualifiedName!!)
 	override fun write(out: BufferedWriter) = with (out) {
-		val def = structFields[struct].modifier?.takeIf { !it.onlySet }?.value.orEmpty() + "val"
+		val def = structFields[struct].modifier?.takeIf { it == Modifier.Internal }?.value.orEmpty() + "val"
 		val type = struct.callName
 		val jvmType = type.replace(".", "")
-		writeln("$def Ref<$type>.next @JvmName(\"${jvmType}_next\") get() = Ref<$type>(offset + $type.size)")
-		writeln("$def Ref<$type>.prev @JvmName(\"${jvmType}_prev\") get() = Ref<$type>(offset - $type.size)")
+		writeln("$def Ref<$type>.index @JvmName(\"${jvmType}_index\") get() = offset / $type.size")
+		writeln("$def Ref<$type>.nextRef @JvmName(\"${jvmType}_next\") get() = Ref<$type>(offset + $type.size)")
+		writeln("$def Ref<$type>.prevRef @JvmName(\"${jvmType}_prev\") get() = Ref<$type>(offset - $type.size)")
 	}
 	override fun hashCode() = struct.hashCode()
 	override fun equals(other: Any?) = other is StructWriter && struct == other.struct
@@ -103,7 +104,7 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 					rangeFields += field
 					val rangeType = field.rangeClass?.callName
 					rangeLines += "\t${varModifier}val Ref<$type>.$rangeName"
-					rangeLines += "\t\t@JvmName(\"${jvmType}_$rangeName\") get() = Ref.Range($name, next.$name, ${rangeType}.size)"
+					rangeLines += "\t\t@JvmName(\"${jvmType}_$rangeName\") get() = Ref.Range($name, nextRef.$name, ${rangeType}.size)"
 				}
 			}
 

@@ -6,7 +6,7 @@ import kotlin.math.max
 open class FlatString(
 	protected val data: CharArray,
 	protected val begin: Int,
-	override val length: Int,
+	final override val length: Int,
 ) : CharSequence {
 	override fun get(index: Int) = data[begin + index]
 	override fun subSequence(startIndex: Int, endIndex: Int) =

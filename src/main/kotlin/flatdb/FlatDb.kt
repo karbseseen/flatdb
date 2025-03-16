@@ -21,11 +21,11 @@ abstract class FlatDb {
 		} ?: throw ClassNotFoundException("Can't get FlatArray<" + struct.javaClass.name + ">")
 
 
-	class String(data: CharArray, begin: Int, length: Int) : FlatString(data, begin, length) {
+	class DbString internal constructor(data: CharArray, begin: Int, length: Int) : FlatString(data, begin, length) {
 		val ref get() = StrRef(data.offset + begin)
 	}
 	class Allocator internal constructor(initialCapacity: Int, offset: Int) :
-		FlatString.Allocator.Base<String>(initialCapacity)
+		FlatString.Allocator.Base<DbString>(initialCapacity)
 	{
 		private val history = ArrayList<CharArray>()
 
@@ -43,8 +43,8 @@ abstract class FlatDb {
 			super.expandArray()
 			applyOffset(newOffset)
 		}
-		override val view get() = String(data, begin, currentLength)
-		override fun save(view: String) = run {
+		override val view get() = DbString(data, begin, currentLength)
+		override fun save(view: DbString) = run {
 			data[begin - 1] = currentLength.toChar()
 			ensureHaveSpace()
 			end++
@@ -69,5 +69,5 @@ abstract class FlatDb {
 	fun setData(allocator: Allocator) { strings = strings.copyInto(allocator.flatten()) }
 
 	val StrRef.size get() = strings[offset - 1].code
-	fun StrRef.get() = FlatString(strings, offset, size)
+	fun StrRef.get() = DbString(strings, offset, size)
 }
