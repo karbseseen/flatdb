@@ -48,4 +48,5 @@ class IntArrayList(initialCapacity: Int = 1024) : AbstractMutableList<Int>() {
 		size--
 	}
 
+	override fun clear() { size = 0 }
 }
