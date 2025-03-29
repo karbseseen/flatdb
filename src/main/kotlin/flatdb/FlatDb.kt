@@ -1,7 +1,5 @@
 package flatdb
 
-import java.time.ZoneOffset
-import kotlin.math.max
 import kotlin.math.min
 
 
@@ -12,7 +10,7 @@ private var CharArray.offset
 abstract class FlatDb {
 	private var arrays: HashMap<Class<*>, FlatArray<*>>? = HashMap()
 	private var canCreate = true
-	protected fun <S : FlatStruct> FlatArray(struct: S) =
+	@Suppress("UNCHECKED_CAST") protected fun <S : FlatStruct> FlatArray(struct: S) =
 		arrays?.let { arrays ->
 			(arrays.remove(struct.javaClass) as FlatArray<S>?)?.also {
 				canCreate = false
