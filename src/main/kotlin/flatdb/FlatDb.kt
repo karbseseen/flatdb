@@ -1,5 +1,6 @@
 package flatdb
 
+import java.io.File
 import kotlin.math.min
 
 
@@ -8,6 +9,16 @@ private var CharArray.offset
 	set(value) { this[0] = value.toChar(); this[1] = (value shr 16).toChar() }
 
 abstract class FlatDb {
+	abstract val allArrays: Array<FlatArray<*>>
+
+	fun save(path: File) {
+		for (array in allArrays)
+			File(path, array.struct.javaClass.simpleName).outputStream().use(array::save)
+	}
+	fun load(path: File) {
+		for (array in allArrays)
+			File(path, array.struct.javaClass.simpleName).inputStream().use(array::load)
+	}
 
 	class DbString internal constructor(data: CharArray, begin: Int, length: Int) : FlatString(data, begin, length) {
 		val ref get() = StrRef(data.offset + begin)

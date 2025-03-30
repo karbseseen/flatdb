@@ -1,6 +1,10 @@
 package flatdb
 
 import flatdb.util.IntArrayList
+import java.io.DataInputStream
+import java.io.DataOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 
 
 class FlatArray<S : FlatStruct>(val struct: S) : Sequence<Ref<S>> {
@@ -38,4 +42,14 @@ class FlatArray<S : FlatStruct>(val struct: S) : Sequence<Ref<S>> {
 			destination.data[dst.offset + index] = data[src.offset + index]
 	}
 	fun shareData(destination: FlatArray<S>) { destination.data = data }
+
+	fun save(output: OutputStream) {
+		val dataOutput = DataOutputStream(output)
+		data.forEach(dataOutput::writeInt)
+	}
+	fun load(input: InputStream) {
+		val dataInput = DataInputStream(input)
+		while (true)
+			data += try { dataInput.readInt() } catch (_: Throwable) { break }
+	}
 }

@@ -79,6 +79,7 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 		val dbModifier by lazy { db.modifier }
 		writeln("sealed class " + db.simpleNameStr + "Base : FlatDb() {")
 		writeln("\tprivate val actualThis = this as " + db.simpleNameStr)
+		writeln("\toverride val allArrays get() = arrayOf(" + arrays.joinToString(", ") { it.name } + ")")
 		for (array in arrays) {
 			val rangeFields = ArrayList<StructField>()
 
