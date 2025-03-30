@@ -77,8 +77,8 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 		val arrayByStruct by lazy { arrays.associateBy { it.typeClass.qualifiedNameStr } }
 		val rangeArrays = ArrayList<Field>()
 		val dbModifier by lazy { db.modifier }
-		var first = true
 		writeln("sealed class " + db.simpleNameStr + "Base : FlatDb() {")
+		writeln("\tprivate val actualThis = this as " + db.simpleNameStr)
 		for (array in arrays) {
 			val rangeFields = ArrayList<StructField>()
 
@@ -90,8 +90,8 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 			val arrayModifier = array.declaration.modifier
 			val struct = structFields[array.typeClass]
 			val rangeLines = ArrayList<String>()
-			if (first) first = false else writeln()
-			writeln("\tprivate val $arrayName = FlatArray($type)")
+			writeln()
+			writeln("\tprivate val $arrayName get() = actualThis.$arrayName")
 			for (field in struct.fields) {
 				val name = field.name
 				val modifier = arrayModifier ?: field.declaration.modifier ?: dbModifier ?: struct.modifier ?: Modifier.Public
@@ -113,7 +113,7 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 			if (rangeFields.isNotEmpty()) {
 				rangeArrays += array
 				val modifier = arrayModifier ?: dbModifier ?: struct.modifier ?: Modifier.Public
-				writeln("\t@JvmName(\"${jvmType}_endRanges\") ${modifier.value}fun FlatArray<$type>.endRanges() = $arrayName.validEndRef.let {")
+				writeln("\t@JvmName(\"${jvmType}_endRanges\") ${modifier.value}fun FlatArray<$type>.endRanges() = validEndRef.let {")
 				for (field in rangeFields) {
 					val rangeClass = field.rangeClass
 					val refArrayName = rangeClass?.let { arrayByStruct[rangeClass.qualifiedNameStr]?.name }

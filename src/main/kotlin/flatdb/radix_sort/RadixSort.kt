@@ -1,37 +1,40 @@
 package flatdb.radix_sort
 
 import flatdb.FlatArray
-import flatdb.FlatDb
 import flatdb.FlatStruct
 import flatdb.Ref
-import java.lang.Math.pow
-import kotlin.collections.iterator
-import kotlin.countLeadingZeroBits
+import flatdb.radix_sort.RadixSort.IndexArray
+import flatdb.radix_sort.RawRadixSort.IterationNum
 import kotlin.math.pow
 import kotlin.math.sqrt
 
 
-object IndexStruct : FlatStruct() { val indexRef = int() }
-class IndexArray : IndexArrayBase() { val value = FlatArray(IndexStruct) }
-
-/*Generated*/
-val Ref<IndexStruct>.next @JvmName("IndexStruct_next") get() = Ref<IndexStruct>(offset + IndexStruct.size)
-val Ref<IndexStruct>.prev @JvmName("IndexStruct_prev") get() = Ref<IndexStruct>(offset - IndexStruct.size)
-sealed class IndexArrayBase : FlatDb() {
-	private val value = FlatArray(IndexStruct)
-	var Ref<IndexStruct>.indexRef
-		@JvmName("IndexStruct_indexRef") get() = IndexStruct.indexRef.getValue(this, value)
-		@JvmName("IndexStruct_indexRef") set(v) { IndexStruct.indexRef.setValue(this, value, v) }
+object RadixSort {
+	object IndexStruct : FlatStruct() { val indexRef = int() }
+	class IndexArray {
+		val value = FlatArray(IndexStruct)
+		var Ref<IndexStruct>.indexRef
+			@JvmName("IndexStruct_indexRef") get() = IndexStruct.indexRef.getValue(this, value)
+			@JvmName("IndexStruct_indexRef") set(v) { IndexStruct.indexRef.setValue(this, value, v) }
+	}
+	val Ref<IndexStruct>.index @JvmName("IndexStruct_index") get() = offset / IndexStruct.size
+	val Ref<IndexStruct>.next @JvmName("IndexStruct_next") get() = Ref<IndexStruct>(offset + IndexStruct.size)
+	val Ref<IndexStruct>.prev @JvmName("IndexStruct_prev") get() = Ref<IndexStruct>(offset - IndexStruct.size)
 }
-/*Generated*/
-
-
-enum class IterationNum { Auto, One, Two, Three }
-
 
 object RawRadixSort {
+	enum class IterationNum { Auto, One, Two, Three }
 	class PreSort<S: FlatStruct>(val initialData: FlatArray<S>, val shift: Int)
 
+	/**
+	 * @param indexArray array which will hold references to the first element for every value
+	 * @param srcArray array to sort, will not be modified
+	 * @param dstArray array which will hold sorted elements
+	 * @param indexGet gets index value from [indexArray]
+	 * @param indexSet sets index value in [indexArray]
+	 * @param get gets sort index of element in [srcArray]
+	 * @param map transforms element from [srcArray] type to [dstArray] type
+	 */
 	inline operator fun <I : FlatStruct, S : FlatStruct, D : FlatStruct> invoke(
 		indexArray: FlatArray<I>,
 		srcArray: FlatArray<S>,
@@ -60,6 +63,13 @@ object RawRadixSort {
 		}
 	}
 
+	/**
+	 * @param indexNum size of internally created index array, must be greater than the maximum value returned from [get]
+	 * @param srcArray array to sort, will not be modified
+	 * @param dstArray array which will hold sorted elements
+	 * @param get gets sort index of element in [srcArray]
+	 * @param map transforms element from [srcArray] type to [dstArray] type
+	 */
 	inline fun <S : FlatStruct, D : FlatStruct> to(
 		indexNum: Int,
 		srcArray: FlatArray<S>,
@@ -78,6 +88,11 @@ object RawRadixSort {
 		)
 	}
 
+	/**
+	 * @param indexNum size of internally created index array, must be greater than the maximum value returned from [get]
+	 * @param array array to sort in place
+	 * @param get gets sort index of element in [array]
+	 */
 	inline fun <S : FlatStruct> inPlace(
 		indexNum: Int,
 		array: FlatArray<S>,
@@ -89,6 +104,13 @@ object RawRadixSort {
 		dstArray.shareData(array)
 	}
 
+	/**
+	 * Performs additional radix sort iteration to reduce total sort time, intended for [FlatArray] radixSort methods
+	 *  @param srcArray array which will be presorted in place, its old buffer will be in returned [PreSort]
+	 *  @param indexNum size of internally created index array, must be greater than the maximum value returned from [get]
+	 *  @param iterationNum custom iteration number; don't set it if you don't know what you are doing
+	 *  @param get gets sort index of element in [srcArray]
+	 */
 	inline fun <S : FlatStruct> presort(
 		srcArray: FlatArray<S>,
 		indexNum: Int,

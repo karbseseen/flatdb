@@ -8,16 +8,6 @@ private var CharArray.offset
 	set(value) { this[0] = value.toChar(); this[1] = (value shr 16).toChar() }
 
 abstract class FlatDb {
-	private var arrays: HashMap<Class<*>, FlatArray<*>>? = HashMap()
-	private var canCreate = true
-	@Suppress("UNCHECKED_CAST") protected fun <S : FlatStruct> FlatArray(struct: S) =
-		arrays?.let { arrays ->
-			(arrays.remove(struct.javaClass) as FlatArray<S>?)?.also {
-				canCreate = false
-				if (arrays.isEmpty()) this.arrays = null
-			} ?: if (canCreate) flatdb.FlatArray(struct).also { arrays += struct.javaClass to it } else null
-		} ?: throw ClassNotFoundException("Can't get FlatArray<" + struct.javaClass.name + ">")
-
 
 	class DbString internal constructor(data: CharArray, begin: Int, length: Int) : FlatString(data, begin, length) {
 		val ref get() = StrRef(data.offset + begin)
