@@ -105,10 +105,10 @@ object RawRadixSort {
 	}
 
 	/**
-	 * Performs additional radix sort iteration to reduce total sort time, intended for [FlatArray] radixSort methods
+	 * Performs additional radix sort iterations to reduce total sort time, intended for [FlatArray] radixSort methods
 	 *  @param srcArray array which will be presorted in place, its old buffer will be in returned [PreSort]
 	 *  @param indexNum size of internally created index array, must be greater than the maximum value returned from [get]
-	 *  @param iterationNum custom iteration number; don't set it if you don't know what you are doing
+	 *  @param iterationNum custom iteration number, set to [IterationNum.Auto] if you are not sure
 	 *  @param get gets sort index of element in [srcArray]
 	 */
 	inline fun <S : FlatStruct> presort(

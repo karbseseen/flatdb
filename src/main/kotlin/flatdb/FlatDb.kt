@@ -1,6 +1,7 @@
 package flatdb
 
 import java.io.File
+import kotlin.math.max
 import kotlin.math.min
 
 
@@ -23,43 +24,52 @@ abstract class FlatDb {
 	class DbString internal constructor(data: CharArray, begin: Int, length: Int) : FlatString(data, begin, length) {
 		val ref get() = StrRef(data.offset + begin)
 	}
-	class Allocator internal constructor(initialCapacity: Int, offset: Int) :
-		FlatString.Allocator.Base<DbString>(initialCapacity)
-	{
+	class Allocator internal constructor(initialCapacity: Int, offset: Int) : FlatString.Allocator<DbString> {
 		private val history = ArrayList<CharArray>()
+		private var data = CharArray(max(initialCapacity, 3))
+		private var begin = 3
+		private var end = 3
+		override val currentLength get() = end - begin
 
-		private fun applyOffset(offset: Int) {
-			begin = 3
-			end += 3
-			data.offset = offset
+		init { data.offset = offset - 2 }
+
+		private fun ensureHaveSpace() {
+			if (end >= data.size) {
+				history += data
+				data = CharArray(data.size * 2).also {
+					it.offset = data.offset + begin - 3
+					if (begin < end) data.copyInto(it, 3, begin, end)
+				}
+				end = end - begin + 3
+				begin = 3
+			}
 		}
 
-		init { applyOffset(offset) }
-
-		override fun expandArray() {
-			val newOffset = data.offset + begin - 3
-			history += data
-			super.expandArray()
-			applyOffset(newOffset)
-		}
-		override val view get() = DbString(data, begin, currentLength)
-		override fun save(view: DbString) = run {
-			data[begin - 1] = currentLength.toChar()
+		override fun put(char: Char) {
 			ensureHaveSpace()
-			end++
-			super.save(view)
+			data[end++] = char
 		}
+		override val view get() = DbString(data, begin, end - begin)
+		override fun save(view: DbString) = view.also {
+			data[begin - 1] = view.length.toChar()
+			begin = ++end
+			ensureHaveSpace()
+		}
+		override fun clear() { end = begin }
 
-		internal fun flatten() = CharArray(data.offset + begin - 3).also { allData ->
+		internal fun flatten() = CharArray(data.offset + begin - 1).also { allData ->
 			history += data
-			history.forEach { it.copyInto(allData, it.offset, 2, min(it.size - 2, allData.size - it.offset)) }
+			data = CharArray(max(data.size / 2, 3)).apply { offset = allData.size - 2 }
+			history += data
+			history.zipWithNext { current, next ->
+				System.arraycopy(current, 2, allData, current.offset + 2, next.offset - current.offset)
+			}
 
 			val last = view
-			history.clear()
 			begin = 3
 			end = 3
-			data.offset = allData.size
 			put(last)
+			history.clear()
 		}
 	}
 
@@ -68,5 +78,5 @@ abstract class FlatDb {
 	fun setData(allocator: Allocator) { strings = strings.copyInto(allocator.flatten()) }
 
 	val StrRef.size get() = strings[offset - 1].code
-	fun StrRef.get() = DbString(strings, offset, size)
+	val StrRef.value get() = FlatString(strings, offset, size)
 }

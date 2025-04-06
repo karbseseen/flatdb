@@ -43,25 +43,23 @@ open class FlatString(
 
 		fun distinct() = Distinct(this)
 
-		abstract class Base<S: FlatString>(initialCapacity: Int = 1024 * 2) : Allocator<S> {
-			protected var data = CharArray(max(initialCapacity, 2))
-			protected var begin = 0
-			protected var end = 0
+		class Simple(initialCapacity: Int = 1024 * 2) : Allocator<FlatString> {
+			private var data = CharArray(max(initialCapacity, 1))
+			private var begin = 0
+			private var end = 0
 			override val currentLength get() = end - begin
 
-			protected open fun expandArray() {
-				data = data.copyInto(CharArray(data.size * 2), 0, begin, end)
-				end = currentLength
-				begin = 0
+			override fun put(char: Char) {
+				if (end == data.size) {
+					data = data.copyInto(CharArray(data.size * 2), 0, begin, end)
+					end -= begin
+					begin = 0
+				}
+				data[end++] = char
 			}
-			protected fun ensureHaveSpace() { if (end == data.size) expandArray() }
-			override fun put(char: Char) { ensureHaveSpace(); data[end++] = char }
-			override fun save(view: S) = view.also { begin = end }
+			override val view get() = FlatString(data, begin, end - begin)
+			override fun save(view: FlatString) = view.also { begin = end }
 			override fun clear() { end = begin }
-		}
-
-		open class Simple(initialCapacity: Int = 1024 * 2) : Base<FlatString>(initialCapacity) {
-			override val view get() = FlatString(data, begin, currentLength)
 		}
 
 		class Distinct<S: FlatString> internal constructor(val base: Allocator<S>) : Allocator<S> {

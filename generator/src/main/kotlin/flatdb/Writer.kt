@@ -79,7 +79,7 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 		val dbModifier by lazy { db.modifier }
 		writeln("sealed class " + db.simpleNameStr + "Base : FlatDb() {")
 		writeln("\tprivate val actualThis = this as " + db.simpleNameStr)
-		writeln("\toverride val allArrays get() = arrayOf(" + arrays.joinToString(", ") { it.name } + ")")
+		writeln("\toverride val allArrays get() = arrayOf<FlatArray<*>>(" + arrays.joinToString(", ") { it.name } + ")")
 		for (array in arrays) {
 			val rangeFields = ArrayList<StructField>()
 
@@ -96,11 +96,11 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 			for (field in struct.fields) {
 				val name = field.name
 				val modifier = arrayModifier ?: field.declaration.modifier ?: dbModifier ?: struct.modifier ?: Modifier.Public
-				val varModifier = if (!modifier.onlySet) modifier.value else ""
-				val setModifier = if ( modifier.onlySet) modifier.value else ""
+				val varModifier = if(!modifier.onlySet) modifier.value else ""
+				val setModifier = if (modifier.onlySet) modifier.value else ""
 				writeln("\t${varModifier}var Ref<$type>.$name")
 				writeln("\t\t@JvmName(\"${jvmType}_$name\") get() = $type.$name.getValue(this, $arrayName)")
-				writeln("\t\t@JvmName(\"${jvmType}_$name\") ${setModifier}set($valueArg) { $type.$name.setValue(this, $arrayName, $valueArg) }")
+				writeln("\t\t@JvmName(\"${jvmType}_$name\") ${setModifier}set($valueArg) = $type.$name.setValue(this, $arrayName, $valueArg)")
 				field.rangeName?.let { rangeName ->
 					rangeFields += field
 					val rangeType = field.rangeClass?.callName
