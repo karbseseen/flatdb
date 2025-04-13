@@ -24,7 +24,7 @@ object RadixSort {
 
 object RawRadixSort {
 	enum class IterationNum { Auto, One, Two, Three }
-	class PreSort<S: FlatStruct>(val initialData: FlatArray<S>, val shift: Int)
+	class PreSort<S: FlatStruct>(val initialData: FlatArray<S>, val shift: Int, val newIndexNum: Int)
 
 	/**
 	 * @param indexArray array which will hold references to the first element for every value
@@ -138,22 +138,21 @@ object RawRadixSort {
 		}
 
 		val initialData = FlatArray(srcArray.struct).also { srcArray.shareData(it) }
-		val bitNum1: Int
-		val bitNum2: Int
 
-		if (iterationNum >= 2) {
-			bitNum1 = roundDivide(bitNum(indexNum), iterationNum)
-			val indexNum1 = 1 shl roundDivide(bitNum(indexNum), iterationNum)
+		val bitNum1 = if (iterationNum >= 2) roundDivide(bitNum(indexNum), iterationNum) else 0
+		if (bitNum1 > 0) {
+			val indexNum1 = 1 shl bitNum1
 			inPlace(indexNum1, srcArray) { get(it) and (indexNum1 - 1) }
-		} else bitNum1 = 0
+		}
 
-		if (iterationNum == 3) {
-			bitNum2 = roundDivide(bitNum(indexNum ushr bitNum1), 2)
+		val bitNum2 = if (iterationNum == 3) roundDivide(bitNum(indexNum ushr bitNum1), 2) else 0
+		if (bitNum2 > 0) {
 			val indexNum2 = 1 shl bitNum2
 			inPlace(indexNum2, srcArray) { get(it) ushr bitNum1 and (indexNum2 - 1) }
-		} else bitNum2 = 0
+		}
 
-		PreSort(initialData, bitNum1 + bitNum2)
+		val totalBitNum = bitNum1 + bitNum2
+		PreSort(initialData, totalBitNum, ((indexNum - 1) ushr totalBitNum) + 1)
 	}
 
 }
@@ -166,7 +165,7 @@ inline fun <S: FlatStruct, D: FlatStruct> FlatArray<S>.radixSortTo(
 	map: (Ref<S>, Ref<D>) -> Unit,
 ) {
 	val presort = RawRadixSort.presort(this, indexNum, iterationNum, get)
-	RawRadixSort.to(indexNum ushr presort.shift, this, dstArray, get, map)
+	RawRadixSort.to(presort.newIndexNum, this, dstArray, { get(it) ushr presort.shift }, map)
 	presort.initialData.shareData(this)
 }
 
@@ -176,5 +175,5 @@ inline fun <S: FlatStruct> FlatArray<S>.radixSortInPlace(
 	get: (Ref<S>) -> Int,
 ) {
 	val presort = RawRadixSort.presort(this, indexNum, iterationNum, get)
-	RawRadixSort.inPlace(indexNum ushr presort.shift, this, get)
+	RawRadixSort.inPlace(presort.newIndexNum, this) { get(it) ushr presort.shift }
 }
