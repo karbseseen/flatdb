@@ -13,10 +13,9 @@ class Processor(
 	private val logger: KSPLogger,
 ): SymbolProcessor {
 
-	val structFields = StructsFields()
 	val writers = ArrayList<Writer>()
 
-	fun process(symbolClass: KSAnnotated) {
+	fun process(symbolClass: KSAnnotated, structFields: StructsFields) {
 		if (symbolClass !is KSClassDeclaration) return
 
 		for (parentType in symbolClass.superTypes) {
@@ -34,13 +33,14 @@ class Processor(
 		writers += dbWriter.arrays.map { StructWriter(it.typeClass, structFields) }
 	}
 
-	fun process(resolver: Resolver, annotation: KClass<*>): Unit =
-		resolver.getSymbolsWithAnnotation(annotation.qualifiedName!!).forEach(::process)
+	fun process(resolver: Resolver, annotation: KClass<*>, structFields: StructsFields) =
+		resolver.getSymbolsWithAnnotation(annotation.qualifiedName!!).forEach { process(it, structFields) }
 
 	override fun process(resolver: Resolver) = emptyList<KSAnnotated>().also {
+		val structFields = StructsFields(resolver)
 		for (modifier in Modifier.entries)
-			process(resolver, modifier.annotation)
-		process(resolver, Generate::class)
+			process(resolver, modifier.annotation, structFields)
+		process(resolver, Generate::class, structFields)
 	}
 
 	override fun finish() = codeGenerator.write(writers)

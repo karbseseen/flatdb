@@ -1,13 +1,15 @@
 package flatdb
 
+import com.google.devtools.ksp.KspExperimental
 import com.google.devtools.ksp.getDeclaredProperties
+import com.google.devtools.ksp.getKotlinClassByName
+import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.symbol.*
 
 
 open class Field(val declaration: KSPropertyDeclaration, val type: KSType) {
 	constructor(declaration: KSPropertyDeclaration) : this(declaration, declaration.type.aliasResolve())
 	val name get() = declaration.simpleNameStr
-	val modifier by lazy { declaration.modifier }
 	val typeClass get() = type.classDeclaration
 
 	override fun hashCode() = typeClass.qualifiedNameStr.hashCode()
@@ -30,19 +32,16 @@ class StructField(declaration: KSPropertyDeclaration) : Field(declaration) {
 	}
 }
 
-private val baseFieldTypes = arrayOf(IntField::class.qualifiedName!!, IntPartField::class.qualifiedName!!)
-private tailrec fun isField(cls: KSClassDeclaration): Boolean =
-	if (baseFieldTypes.contains(cls.qualifiedNameStr)) true
-	else if (cls.modifiers.contains(com.google.devtools.ksp.symbol.Modifier.VALUE))
-		isField(cls.getDeclaredProperties().first().type.aliasResolve().declaration as KSClassDeclaration)
-	else false
-
-class StructFields(struct: KSClassDeclaration) {
-	val fields = struct.getDeclaredProperties().map(::StructField).filter { isField(it.typeClass) }
+class StructFields(struct: KSClassDeclaration, fieldType: KSType) {
+	val fields = struct.getDeclaredProperties()
+		.map(::StructField)
+		.filter { fieldType.isAssignableFrom(it.type) }
 	val modifier by lazy { struct.modifier }
 }
 
-class StructsFields {
+class StructsFields(resolver: Resolver) {
+	@OptIn(KspExperimental::class)
+	private val fieldType = resolver.getKotlinClassByName(FlatField::class.qualifiedName!!)!!.asStarProjectedType()
 	private val map = HashMap<KSClassDeclaration, StructFields>()
-	operator fun get(struct: KSClassDeclaration) = map.computeIfAbsent(struct, ::StructFields)
+	operator fun get(struct: KSClassDeclaration) = map.computeIfAbsent(struct) { StructFields(it, fieldType) }
 }
