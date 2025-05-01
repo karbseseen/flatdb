@@ -23,7 +23,7 @@ abstract class FullField<S: FlatStruct, V>(val intOffset: Int) : FlatField<S, V>
 abstract class PartField<S: FlatStruct, V>(bitOffset: Int, bitSize: Int) : FlatField<S, V>, FlatFieldInner<S, V>() {
 	val intOffset = bitOffset / 32
 	val bitOffset = bitOffset % 32
-	val mask = ((1 shl bitSize) - 1) ushr bitOffset
+	val mask = ((1 shl bitSize) - 1) shl this.bitOffset
 	override fun getInner(ref: Ref<S>, array: FlatArray<S>) =
 		array.data[ref.offset + intOffset] and mask ushr bitOffset
 	override fun setInner(ref: Ref<S>, array: FlatArray<S>, value: Int) {
@@ -31,8 +31,6 @@ abstract class PartField<S: FlatStruct, V>(bitOffset: Int, bitSize: Int) : FlatF
 		array.data[offset] = (array.data[offset] and mask.inv()) or (value shl bitOffset)
 	}
 }
-
-
 
 
 open class IntField<S: FlatStruct> internal constructor(intOffset: Int) :

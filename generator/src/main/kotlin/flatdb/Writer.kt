@@ -23,6 +23,8 @@ fun CodeGenerator.write(writers: Iterable<Writer>) {
 			file.packageName.asString().takeIf { it.isNotEmpty() }?.let { packageName -> out.writeln("package $packageName\n") }
 			writers.flatMap { it.imports }.distinct().forEach { out.writeln("import $it") }
 			out.writeln()
+			if (writers.any { it is DbWriter })
+				out.writeln("@RequiresOptIn @Retention(AnnotationRetention.BINARY) private annotation class Private\n")
 			writers
 				.sortedBy { it.declaration.simpleNameStr }
 				.sortedBy { (it.declaration.location as? FileLocation)?.lineNumber ?: -1 }
@@ -73,10 +75,11 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 	)
 
 	override fun write(out: BufferedWriter) = with (out) {
+		val dbName = db.simpleNameStr
+		val dbAccessName = db.simpleNameStr + "Access"
 		val dbModifier by lazy { db.modifier }
-		val actualModifier = if (db.modifiers.contains(com.google.devtools.ksp.symbol.Modifier.INTERNAL)) "internal " else ""
-		writeln("sealed class " + db.simpleNameStr + "Base : FlatDb() {")
-		writeln("\t${actualModifier}val actualThis = this as " + db.simpleNameStr)
+		val dbClassModifier = if (db.modifiers.contains(com.google.devtools.ksp.symbol.Modifier.INTERNAL)) "internal " else ""
+		writeln("${dbClassModifier}class $dbAccessName @Private constructor(val db: $dbName) {")
 		for (array in arrays) {
 			val arrayName = array.name
 			val type = array.typeClass.callName
@@ -94,13 +97,14 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 				val varModifier = (if (!modifier.onlySet) modifier.value else "") + "inline"
 				val varDeclaration = if (field.isView) "val" else "var"
 				writeln("\t$varModifier $varDeclaration Ref<$type>.$name")
-				writeln("\t\t$nameAnnotation get() = $type.$name.getValue(this, actualThis.$arrayName)")
+				writeln("\t\t$nameAnnotation get() = $type.$name.getValue(this, db.$arrayName)")
 
 				if (field.isView) continue
 				val setModifier = if (modifier.onlySet) modifier.value else ""
-				writeln("\t\t$nameAnnotation ${setModifier}set($valueArg) = $type.$name.setValue(this, actualThis.$arrayName, $valueArg)")
+				writeln("\t\t$nameAnnotation ${setModifier}set($valueArg) = $type.$name.setValue(this, db.$arrayName, $valueArg)")
 			}
 		}
 		writeln("}")
+		writeln("@OptIn(Private::class) ${dbClassModifier}fun <R> $dbName.access(block: $dbAccessName.() -> R) = block($dbAccessName(this))")
 	}
 }
