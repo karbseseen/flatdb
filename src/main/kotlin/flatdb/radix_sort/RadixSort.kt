@@ -1,8 +1,10 @@
 package flatdb.radix_sort
 
 import flatdb.FlatArray
+import flatdb.FlatDb
 import flatdb.FlatStruct
 import flatdb.Ref
+import flatdb.int
 import flatdb.radix_sort.RadixSort.IndexArray
 import flatdb.radix_sort.RawRadixSort.IterationNum
 import kotlin.math.pow
@@ -11,8 +13,8 @@ import kotlin.math.sqrt
 
 object RadixSort {
 	object IndexStruct : FlatStruct() { val indexRef = int() }
-	class IndexArray {
-		val value = FlatArray(IndexStruct)
+	class IndexArray : FlatDb() {
+		val value = array(IndexStruct)
 		var Ref<IndexStruct>.indexRef
 			@JvmName("IndexStruct_indexRef") get() = IndexStruct.indexRef.getValue(this, value)
 			@JvmName("IndexStruct_indexRef") set(v) { IndexStruct.indexRef.setValue(this, value, v) }
@@ -99,7 +101,7 @@ object RawRadixSort {
 		get: (Ref<S>) -> Int,
 	) {
 		if (indexNum <= 1) return
-		val dstArray = FlatArray(array.struct)
+		val dstArray = FlatArray(array.struct, array.db)
 		to(indexNum, array, dstArray, get) { src, dst -> array.copyItem(dstArray, src, dst) }
 		dstArray.shareData(array)
 	}
@@ -137,7 +139,7 @@ object RawRadixSort {
 			}
 		}
 
-		val initialData = FlatArray(srcArray.struct).also { srcArray.shareData(it) }
+		val initialData = FlatArray(srcArray.struct, srcArray.db).also { srcArray.shareData(it) }
 
 		val bitNum1 = if (iterationNum >= 2) roundDivide(bitNum(indexNum), iterationNum) else 0
 		if (bitNum1 > 0) {

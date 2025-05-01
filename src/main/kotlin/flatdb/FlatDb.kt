@@ -8,7 +8,11 @@ private var CharArray.offset
 	set(value) { this[0] = value.toChar(); this[1] = (value shr 16).toChar() }
 
 abstract class FlatDb {
-	abstract val allArrays: Array<FlatArray<*>>
+	interface Base { fun <S: FlatStruct> array(struct: S): FlatArray<S> }
+
+	private val allArraysInner = ArrayList<FlatArray<*>>()
+	val allArrays: List<FlatArray<*>> = allArraysInner
+	fun <S: FlatStruct> array(struct: S) = FlatArray(struct, this).also { allArraysInner += it }
 
 	class DbString internal constructor(data: CharArray, begin: Int, length: Int) : FlatString(data, begin, length) {
 		val ref get() = StrRef(data.offset + begin)

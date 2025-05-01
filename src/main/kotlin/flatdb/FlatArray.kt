@@ -9,7 +9,7 @@ import java.io.OutputStream
 import kotlin.concurrent.thread
 
 
-class FlatArray<S : FlatStruct>(val struct: S) : Sequence<Ref<S>> {
+class FlatArray<S : FlatStruct>(val struct: S, val db: FlatDb) : Sequence<Ref<S>> {
 	internal var data = IntArrayList()
 	val itemSize = struct.size
 	val size get() = data.size / itemSize
@@ -38,6 +38,18 @@ class FlatArray<S : FlatStruct>(val struct: S) : Sequence<Ref<S>> {
 		override fun hasNext() = ref.offset > 0
 		override fun next() = (ref - itemSize).also { ref = it }
 	}
+
+
+	fun endRanges() {
+		val end = validEndRef
+		for (rangeField in struct.ranges) {
+			val field = rangeField.field
+			val array = db.allArrays.find { it.struct == field.refStruct }
+				?: throw NoSuchFieldException("Couldn't find array for " + field.refStruct)
+			field.setValue(end, this, Ref(array.endRef.offset))
+		}
+	}
+
 
 	fun copyItem(destination: FlatArray<S>, src: Ref<S>, dst: Ref<S>) {
 		for (index in 0 until itemSize)

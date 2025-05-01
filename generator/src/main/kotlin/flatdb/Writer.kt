@@ -67,23 +67,17 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 
 	override val imports get() = listOf(
 		*arrays.map { it.typeClass.import }.toTypedArray(),
-		*arrays.flatMap { structFields[it.typeClass].fields }.mapNotNull { it.rangeClass?.import }.toTypedArray(),
 		Ref::class.qualifiedName!!,
 		FlatDb::class.qualifiedName!!,
 		FlatArray::class.qualifiedName!!,
 	)
 
 	override fun write(out: BufferedWriter) = with (out) {
-		val arrayByStruct by lazy { arrays.associateBy { it.typeClass.qualifiedNameStr } }
-		val rangeArrays = ArrayList<Field>()
 		val dbModifier by lazy { db.modifier }
 		val actualModifier = if (db.modifiers.contains(com.google.devtools.ksp.symbol.Modifier.INTERNAL)) "internal " else ""
 		writeln("sealed class " + db.simpleNameStr + "Base : FlatDb() {")
 		writeln("\t${actualModifier}val actualThis = this as " + db.simpleNameStr)
-		writeln("\toverride val allArrays get() = arrayOf<FlatArray<*>>(" + arrays.joinToString(", ") { "actualThis." + it.name } + ")")
 		for (array in arrays) {
-			val rangeFields = ArrayList<StructField>()
-
 			val arrayName = array.name
 			val type = array.typeClass.callName
 			val jvmType = type.replace(".", "")
@@ -91,50 +85,22 @@ class DbWriter(val db: KSClassDeclaration, val structFields: StructsFields) : Wr
 
 			val arrayModifier = array.declaration.modifier
 			val struct = structFields[array.typeClass]
-			val rangeLines = ArrayList<String>()
 			writeln()
 			for (field in struct.fields) {
 				val name = field.name
+				val nameAnnotation = "@JvmName(\"${jvmType}_$name\")"
 				val modifier = arrayModifier ?: field.declaration.modifier ?: dbModifier ?: struct.modifier ?: Modifier.Public
-				val varModifier = if(!modifier.onlySet) modifier.value else ""
+
+				val varModifier = (if (!modifier.onlySet) modifier.value else "") + "inline"
+				val varDeclaration = if (field.isView) "val" else "var"
+				writeln("\t$varModifier $varDeclaration Ref<$type>.$name")
+				writeln("\t\t$nameAnnotation get() = $type.$name.getValue(this, actualThis.$arrayName)")
+
+				if (field.isView) continue
 				val setModifier = if (modifier.onlySet) modifier.value else ""
-				writeln("\t${varModifier}inline var Ref<$type>.$name")
-				writeln("\t\t@JvmName(\"${jvmType}_$name\") get() = $type.$name.getValue(this, actualThis.$arrayName)")
-				writeln("\t\t@JvmName(\"${jvmType}_$name\") ${setModifier}set($valueArg) = $type.$name.setValue(this, actualThis.$arrayName, $valueArg)")
-				field.rangeName?.let { rangeName ->
-					rangeFields += field
-					val rangeType = field.rangeClass?.callName
-					rangeLines += "\t${varModifier}val Ref<$type>.$rangeName"
-					rangeLines += "\t\t@JvmName(\"${jvmType}_$rangeName\") get() = Ref.Range($name, nextRef.$name, ${rangeType}.size)"
-				}
-			}
-
-			for (rangeLine in rangeLines) writeln(rangeLine)
-
-			if (rangeFields.isNotEmpty()) {
-				rangeArrays += array
-				val modifier = arrayModifier ?: dbModifier ?: struct.modifier ?: Modifier.Public
-				writeln("\t@JvmName(\"${jvmType}_endRanges\") ${modifier.value}fun FlatArray<$type>.endRanges() = validEndRef.let {")
-				for (field in rangeFields) {
-					val rangeClass = field.rangeClass
-					val refArrayName = rangeClass?.let { arrayByStruct[rangeClass.qualifiedNameStr]?.name }
-						?: throw ClassNotFoundException(
-							"Not found referenced class " + (rangeClass?.qualifiedNameStr?:"???") +
-							" for range field " + field.declaration.qualifiedNameStr)
-					writeln("\t\tit.${field.name} = Ref(actualThis.$refArrayName.size)")
-				}
-				writeln("\t}")
+				writeln("\t\t$nameAnnotation ${setModifier}set($valueArg) = $type.$name.setValue(this, actualThis.$arrayName, $valueArg)")
 			}
 		}
-
-		if (rangeArrays.isNotEmpty()) {
-			val modifier = if (dbModifier == Modifier.Protected || dbModifier == Modifier.ProtectedSet) "protected " else ""
-			writeln()
-			writeln("\t${modifier}fun endAllRanges() {")
-			for (array in rangeArrays) writeln("\t\tactualThis.${array.name}.endRanges()")
-			writeln("\t}")
-		}
-
 		writeln("}")
 	}
 }

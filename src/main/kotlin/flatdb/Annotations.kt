@@ -9,5 +9,3 @@ package flatdb
 }
 
 @Target(AnnotationTarget.CLASS) annotation class Generate
-
-@Target(AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.PROPERTY) annotation class Range(val name: String)
