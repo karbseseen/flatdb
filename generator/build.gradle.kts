@@ -3,6 +3,8 @@ plugins {
 	id("com.google.devtools.ksp") version "2.1.0-1.0.29"
 }
 
+kotlin { jvmToolchain(17) }
+
 dependencies {
 	implementation(project(":flatdb"))
 	implementation("com.google.devtools.ksp:symbol-processing-api:2.1.0-1.0.29")

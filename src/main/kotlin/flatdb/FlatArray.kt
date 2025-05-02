@@ -60,24 +60,13 @@ class FlatArray<S : FlatStruct>(val struct: S, val db: FlatDb) : Sequence<Ref<S>
 
 	private val defaultFileName get() = struct.javaClass.simpleName + ".bin"
 
-	fun save(output: OutputStream) {
-		val dataOutput = DataOutputStream(output)
-		data.forEach(dataOutput::writeInt)
-		/*val bytes = ByteArray(4)
-		for (i in data) {
-			bytes[0] = i.toByte()
-			bytes[1] = (i shr 8).toByte()
-			bytes[2] = (i shr 16).toByte()
-			bytes[3] = (i shr 24).toByte()
-			output.write(bytes)
-		}*/
+	fun save(output: OutputStream) = DataOutputStream(output).use { output ->
+		data.forEach(output::writeInt)
 	}
 	fun save(path: File) = save(File(path, defaultFileName).outputStream().buffered())
 
-	fun load(input: InputStream) {
-		val dataInput = DataInputStream(input)
-		while (true)
-			data += try { dataInput.readInt() } catch (_: Throwable) { break }
+	fun load(input: InputStream) = DataInputStream(input).use { input ->
+		while (true) data += try { input.readInt() } catch (_: Throwable) { break }
 	}
 	fun load(path: File) = load(File(path, defaultFileName).inputStream().buffered())
 }
