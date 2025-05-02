@@ -49,4 +49,6 @@ class IntArrayList(initialCapacity: Int = 1024) : AbstractMutableList<Int>() {
 	}
 
 	override fun clear() { size = 0 }
+
+	fun sort() = java.util.Arrays.sort(data, 0, size)
 }
